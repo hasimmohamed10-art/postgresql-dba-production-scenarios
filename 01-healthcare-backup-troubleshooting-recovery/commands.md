@@ -485,4 +485,3 @@ The final verification should confirm:
 * The three original patient records are available.
 * The database was successfully restored from the custom-format backup.
 
-```
