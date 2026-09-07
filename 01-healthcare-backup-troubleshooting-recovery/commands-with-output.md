@@ -675,5 +675,4 @@ The `medcare_db` database was then intentionally dropped to simulate accidental 
 
 Finally, the recovered patient data and table structure were verified.
 
-```
 
