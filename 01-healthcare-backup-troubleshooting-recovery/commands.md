@@ -1,80 +1,152 @@
-# PostgreSQL Healthcare Database — Commands
+# Healthcare Backup Troubleshooting & Recovery — Commands
 
-## 1. Initialize PostgreSQL Instance
+## Environment
 
-**Purpose:** Create a new PostgreSQL database cluster for the healthcare environment.
-
-```bash
-initdb -D /app01/postgres/healthcare_primary
-````
+- PostgreSQL Version: `17.10`
+- PostgreSQL User: `postgres`
+- Data Directory: `/app01/postgres/healthcare_primary`
+- PostgreSQL Port: `5438`
+- Database: `medcare_db`
+- Schema: `clinical`
+- Table: `clinical.patient_records`
+- Backup Directory: `/app01/postgres/healthcare_backup`
+- Backup Format: Custom (`-F c`)
+- Backup File: `medcare_db_test.dump`
 
 ---
 
-## 2. Configure PostgreSQL Port
+# 1. Create the PostgreSQL Instance
 
-**Purpose:** Configure the PostgreSQL instance to listen on port `5438`.
+## 1.1 Switch to the PostgreSQL User
+
+```bash
+su - postgres
+````
+
+## 1.2 Verify the Working Directory
+
+```bash
+pwd
+```
+
+## 1.3 Initialize the PostgreSQL Database Cluster
+
+```bash
+initdb -D /app01/postgres/healthcare_primary
+```
+
+## 1.4 Verify the Instance Directory
+
+```bash
+ls
+```
+
+## 1.5 Verify the Instance Directory Permissions
+
+```bash
+ls -ld /app01/postgres/healthcare_primary
+```
+
+---
+
+# 2. Configure the PostgreSQL Instance
+
+## 2.1 Open postgresql.conf
 
 ```bash
 vi /app01/postgres/healthcare_primary/postgresql.conf
 ```
 
-Set:
+Configure:
 
-```conf
+```text
 port = 5438
 ```
 
----
-
-## 3. Start PostgreSQL
-
-**Purpose:** Start the PostgreSQL server and write startup messages to the server log.
+## 2.2 Verify the Configured Port
 
 ```bash
-pg_ctl -D /app01/postgres/healthcare_primary -l /app01/postgres/healthcare_primary/server.log start
+grep "^port" /app01/postgres/healthcare_primary/postgresql.conf
 ```
 
 ---
 
-## 4. Verify PostgreSQL Status
+# 3. Start and Verify the PostgreSQL Instance
 
-**Purpose:** Confirm whether the PostgreSQL instance is running.
+## 3.1 Start the PostgreSQL Server
+
+```bash
+pg_ctl -D /app01/postgres/healthcare_primary \
+-l /app01/postgres/healthcare_primary/server.log start
+```
+
+## 3.2 Check PostgreSQL Server Status
 
 ```bash
 pg_ctl -D /app01/postgres/healthcare_primary status
 ```
 
----
-
-## 5. Connect to PostgreSQL
-
-**Purpose:** Connect to the PostgreSQL instance using `psql` on port `5438`.
+## 3.3 Connect to the PostgreSQL Instance
 
 ```bash
-psql -p 5438
+psql -p 5438 -d postgres
 ```
 
 ---
 
-## 6. Create Healthcare Database
+# 4. Verify the PostgreSQL Instance Configuration
 
-**Purpose:** Create the database used by the healthcare application.
+## 4.1 Verify the Current Database
+
+```sql
+SELECT current_database();
+```
+
+## 4.2 Verify the Current User
+
+```sql
+SELECT current_user;
+```
+
+## 4.3 Verify the Data Directory
+
+```sql
+SHOW data_directory;
+```
+
+## 4.4 Verify the PostgreSQL Port
+
+```sql
+SHOW port;
+```
+
+---
+
+# 5. Create the Healthcare Database
+
+## 5.1 Create medcare_db
 
 ```sql
 CREATE DATABASE medcare_db;
 ```
 
-Connect to the database:
+## 5.2 Verify the Database
+
+```sql
+\l medcare_db
+```
+
+---
+
+# 6. Create the Healthcare Schema
+
+## 6.1 Connect to medcare_db
 
 ```sql
 \c medcare_db
 ```
 
----
-
-## 7. Create Clinical Schema
-
-**Purpose:** Create a schema to logically organize healthcare-related database objects.
+## 6.2 Create the clinical Schema
 
 ```sql
 CREATE SCHEMA clinical;
@@ -82,180 +154,23 @@ CREATE SCHEMA clinical;
 
 ---
 
-## 8. Create Patient Records Table
+# 7. Create the Healthcare Table
 
-**Purpose:** Create a table to store sample patient records for the recovery scenario.
+## 7.1 Create patient_records
 
 ```sql
 CREATE TABLE clinical.patient_records (
     patient_id SERIAL PRIMARY KEY,
-    patient_name VARCHAR(100),
-    age INT,
-    gender VARCHAR(20),
-    diagnosis VARCHAR(200)
+    patient_name VARCHAR(100) NOT NULL,
+    date_of_birth DATE,
+    diagnosis VARCHAR(200),
+    admission_date DATE DEFAULT CURRENT_DATE
 );
 ```
 
 ---
 
-## 9. Insert Sample Patient Data
-
-**Purpose:** Insert sample records into the patient table so that backup and recovery can be verified.
-
-```sql
-INSERT INTO clinical.patient_records
-(patient_name, age, gender, diagnosis)
-VALUES
-('Arun Kumar', 45, 'Male', 'Hypertension'),
-('Priya Sharma', 32, 'Female', 'Diabetes'),
-('Rahul Das', 58, 'Male', 'Asthma');
-```
-
----
-
-## 10. Verify Patient Data
-
-**Purpose:** Confirm that the sample patient records were created successfully.
-
-```sql
-SELECT * FROM clinical.patient_records;
-```
-
----
-
-## 11. Create Backup Directory
-
-**Purpose:** Create the filesystem directory where PostgreSQL backup files will be stored.
-
-Exit from `psql`:
-
-```sql
-\q
-```
-
-Create the directory:
-
-```bash
-mkdir -p /app01/postgres/healthcare_backup
-```
-
-Set ownership:
-
-```bash
-chown postgres:postgres /app01/postgres/healthcare_backup
-```
-
----
-
-## 12. Create Baseline Backup
-
-**Purpose:** Create an initial PostgreSQL backup in custom format.
-
-```bash
-pg_dump -p 5438 -d medcare_db -F c -f /app01/postgres/healthcare_backup/medcare_db.dump
-```
-
----
-
-## 13. Simulate Backup Permission Failure
-
-**Purpose:** Intentionally remove write permission from the backup directory to simulate a backup failure.
-
-```bash
-chmod 500 /app01/postgres/healthcare_backup
-```
-
-Attempt to create another backup:
-
-```bash
-pg_dump -p 5438 -d medcare_db -F c -f /app01/postgres/healthcare_backup/medcare_db_test.dump
-```
-
----
-
-## 14. Investigate Backup Directory Permissions
-
-**Purpose:** Check the permissions and ownership of the backup directory to identify the cause of the backup failure.
-
-```bash
-ls -ld /app01/postgres/healthcare_backup
-```
-
----
-
-## 15. Correct Backup Directory Permissions
-
-**Purpose:** Restore the required permissions so the PostgreSQL backup process can write to the directory.
-
-```bash
-chmod 700 /app01/postgres/healthcare_backup
-```
-
-Verify the permissions:
-
-```bash
-ls -ld /app01/postgres/healthcare_backup
-```
-
----
-
-## 16. Create Successful Backup
-
-**Purpose:** Create the backup again after correcting the directory permissions.
-
-```bash
-pg_dump -p 5438 -d medcare_db -F c -f /app01/postgres/healthcare_backup/medcare_db_test.dump
-```
-
----
-
-## 17. Verify Backup File
-
-**Purpose:** Confirm that the backup file was created successfully and check its size.
-
-```bash
-ls -lh /app01/postgres/healthcare_backup/
-```
-
----
-
-## 18. Validate Custom-Format Backup
-
-**Purpose:** Inspect the contents of the custom-format backup and confirm that it is readable by PostgreSQL restore tools.
-
-```bash
-pg_restore -l /app01/postgres/healthcare_backup/medcare_db_test.dump
-```
-
----
-
-## 19. Create Recovery Database
-
-**Purpose:** Create a separate database for testing the backup restoration without affecting the original database.
-
-```bash
-createdb -p 5438 medcare_recovery
-```
-
----
-
-## 20. Restore Backup into Recovery Database
-
-**Purpose:** Restore the backup into the separate recovery database to test backup recoverability.
-
-```bash
-pg_restore -p 5438 -d medcare_recovery /app01/postgres/healthcare_backup/medcare_db_test.dump
-```
-
----
-
-## 21. Verify Recovered Schema
-
-**Purpose:** Confirm that the `clinical` schema was restored successfully.
-
-```bash
-psql -p 5438 -d medcare_recovery
-```
+# 8. Verify the Healthcare Schema
 
 ```sql
 \dn
@@ -263,19 +178,20 @@ psql -p 5438 -d medcare_recovery
 
 ---
 
-## 22. Verify Recovered Table
+# 9. Insert Healthcare Patient Data
 
-**Purpose:** Confirm that the patient records table was restored successfully.
+## 9.1 Insert Sample Patient Records
 
 ```sql
-\dt clinical.*
+INSERT INTO clinical.patient_records
+    (patient_name, date_of_birth, diagnosis)
+VALUES
+    ('Arun Kumar', '1985-04-12', 'Hypertension'),
+    ('Priya Sharma', '1992-08-25', 'Diabetes'),
+    ('Rahul Das', '1978-11-03', 'Asthma');
 ```
 
----
-
-## 23. Verify Recovered Patient Data
-
-**Purpose:** Confirm that the patient records were restored correctly.
+## 9.2 Verify the Patient Records
 
 ```sql
 SELECT * FROM clinical.patient_records;
@@ -283,121 +199,268 @@ SELECT * FROM clinical.patient_records;
 
 ---
 
-## 24. Check PostgreSQL Sessions
+# 10. Create the Backup Directory
 
-**Purpose:** Check active PostgreSQL sessions and identify connections to the database before performing database-level recovery operations.
+## 10.1 Create the Healthcare Backup Directory
 
-```sql
-SELECT pid, usename, datname, state
-FROM pg_stat_activity;
+```bash
+mkdir -p /app01/postgres/healthcare_backup
+```
+
+## 10.2 Verify the Backup Directory
+
+```bash
+ls -ld /app01/postgres/healthcare_backup
 ```
 
 ---
 
-## 25. Exit PostgreSQL
+# 11. Create the Initial PostgreSQL Backup
 
-**Purpose:** Exit the `psql` client.
+## 11.1 Create a Custom-Format Backup
+
+```bash
+pg_dump -p 5438 -d medcare_db -F c \
+-f /app01/postgres/healthcare_backup/medcare_db.dump
+```
+
+---
+
+# 12. Simulate a Backup Permission Failure
+
+## 12.1 Restrict the Backup Directory Permissions
+
+```bash
+chmod 500 /app01/postgres/healthcare_backup
+```
+
+## 12.2 Verify the Changed Permissions
+
+```bash
+ls -ld /app01/postgres/healthcare_backup
+```
+
+---
+
+# 13. Reproduce and Investigate the Backup Failure
+
+## 13.1 Attempt the Backup
+
+```bash
+pg_dump -p 5438 -d medcare_db -F c \
+-f /app01/postgres/healthcare_backup/medcare_db_test.dump
+```
+
+## 13.2 Check the Backup Directory Permissions
+
+```bash
+ls -ld /app01/postgres/healthcare_backup
+```
+
+### Root Cause
+
+The backup directory does not have write permission for the PostgreSQL user.
+
+---
+
+# 14. Correct the Backup Directory Permissions
+
+## 14.1 Restore Write Permission
+
+```bash
+chmod 700 /app01/postgres/healthcare_backup
+```
+
+## 14.2 Verify the Corrected Permissions
+
+```bash
+ls -ld /app01/postgres/healthcare_backup
+```
+
+---
+
+# 15. Create the Backup Successfully
+
+## 15.1 Create the Backup
+
+```bash
+pg_dump -p 5438 -d medcare_db -F c \
+-f /app01/postgres/healthcare_backup/medcare_db_test.dump
+```
+
+## 15.2 Verify the Backup File
+
+```bash
+ls -lh /app01/postgres/healthcare_backup/medcare_db_test.dump
+```
+
+## 15.3 Check the Backup File Details
+
+```bash
+ls -ld /app01/postgres/healthcare_backup/medcare_db_test.dump
+```
+
+---
+
+# 16. Validate the Backup Archive
+
+## 16.1 Inspect the Backup Table of Contents
+
+```bash
+pg_restore -l /app01/postgres/healthcare_backup/medcare_db_test.dump | head
+```
+
+---
+
+# 17. Create a Temporary Recovery Database
+
+## 17.1 Create medcare_recovery
+
+```sql
+CREATE DATABASE medcare_recovery;
+```
+
+## 17.2 Verify the Recovery Database
+
+```sql
+\l
+```
+
+---
+
+# 18. Test Restore the Backup
+
+## 18.1 Exit from psql
 
 ```sql
 \q
 ```
 
----
-
-## 26. Stop PostgreSQL Before Database-Loss Simulation
-
-**Purpose:** Stop the PostgreSQL instance when required during the isolated recovery workflow.
+## 18.2 Restore the Backup into medcare_recovery
 
 ```bash
-pg_ctl -D /app01/postgres/healthcare_primary stop
+pg_restore -p 5438 -d medcare_recovery \
+/app01/postgres/healthcare_backup/medcare_db_test.dump
 ```
 
----
-
-## 27. Start PostgreSQL Again
-
-**Purpose:** Start the PostgreSQL instance after the controlled stop.
+## 18.3 Connect to the Recovery Database
 
 ```bash
-pg_ctl -D /app01/postgres/healthcare_primary -l /app01/postgres/healthcare_primary/server.log start
+psql -p 5438 -d medcare_recovery
 ```
 
----
-
-## 28. Simulate Accidental Database Loss
-
-**Purpose:** Simulate accidental deletion of the healthcare database as part of the recovery test.
-
-Connect to PostgreSQL:
-
-```bash
-psql -p 5438
-```
-
-Terminate active connections if required:
+## 18.4 Verify the Restored Schemas
 
 ```sql
-SELECT pg_terminate_backend(pid)
-FROM pg_stat_activity
-WHERE datname = 'medcare_db'
-  AND pid <> pg_backend_pid();
+\dn
 ```
 
-Drop the database:
+## 18.5 Verify the Restored Patient Data
+
+```sql
+SELECT * FROM clinical.patient_records;
+```
+
+---
+
+# 19. Prepare for Database Recovery Simulation
+
+## 19.1 Connect to the postgres Database
+
+```sql
+\c postgres
+```
+
+## 19.2 Check Active Connections to medcare_db
+
+```sql
+SELECT pid, usename, datname, state
+FROM pg_stat_activity
+WHERE datname = 'medcare_db';
+```
+
+---
+
+# 20. Simulate Database Loss
+
+## 20.1 Drop medcare_db
 
 ```sql
 DROP DATABASE medcare_db;
 ```
 
+## 20.2 Verify the Database Was Removed
+
+```sql
+\l
+```
+
 ---
 
-## 29. Recreate the Database
+# 21. Recreate the Healthcare Database
 
-**Purpose:** Recreate the deleted database so that the backup can be restored.
+## 21.1 Create medcare_db Again
 
 ```sql
 CREATE DATABASE medcare_db;
 ```
 
+## 21.2 Verify the Recreated Database
+
+```sql
+\l medcare_db
+```
+
 ---
 
-## 30. Exit PostgreSQL
+# 22. Remove the Temporary Recovery Database
 
-**Purpose:** Exit the `psql` client before continuing with the restore operation.
+## 22.1 Drop medcare_recovery
+
+```sql
+DROP DATABASE medcare_recovery;
+```
+
+## 22.2 Verify the Final Database List
+
+```sql
+\l
+```
+
+---
+
+# 23. Perform the Final Database Restore
+
+## 23.1 Exit from psql
 
 ```sql
 \q
 ```
 
----
-
-## 31. Remove Temporary Recovery Database
-
-**Purpose:** Remove the temporary recovery database after completing the recovery test.
+## 23.2 Restore the Backup into the Recreated medcare_db
 
 ```bash
-dropdb -p 5438 medcare_recovery
+pg_restore -p 5438 -d medcare_db \
+/app01/postgres/healthcare_backup/medcare_db_test.dump
 ```
 
----
-
-## 32. Restore the Final Backup
-
-**Purpose:** Restore the healthcare database from the validated backup after simulating database loss.
-
-```bash
-pg_restore -p 5438 -d medcare_db /app01/postgres/healthcare_backup/medcare_db_test.dump
-```
-
----
-
-## 33. Verify Restored Data
-
-**Purpose:** Confirm that the patient data is available after the final database recovery.
+## 23.3 Connect to the Recreated medcare_db
 
 ```bash
 psql -p 5438 -d medcare_db
 ```
+
+---
+
+# 24. Verify the Final Recovery
+
+## 24.1 Verify the Restored Schemas
+
+```sql
+\dn
+```
+
+## 24.2 Verify the Final Patient Data
 
 ```sql
 SELECT * FROM clinical.patient_records;
@@ -405,29 +468,21 @@ SELECT * FROM clinical.patient_records;
 
 ---
 
-## 34. Verify Table Structure
+# 25. Final Validation
 
-**Purpose:** Confirm that the table structure was restored correctly.
-
-```sql
-\d clinical.patient_records
-```
-
----
-
-## 35. Final PostgreSQL Status Check
-
-**Purpose:** Confirm that the PostgreSQL instance is running successfully after the complete recovery workflow.
-
-Exit from `psql`:
+The following checks confirm successful recovery:
 
 ```sql
-\q
+\dn
+
+SELECT * FROM clinical.patient_records;
 ```
 
-Check the server status:
+The final verification should confirm:
 
-```bash
-pg_ctl -D /app01/postgres/healthcare_primary status
+* `clinical` schema exists.
+* `clinical.patient_records` table exists.
+* The three original patient records are available.
+* The database was successfully restored from the custom-format backup.
+
 ```
-
