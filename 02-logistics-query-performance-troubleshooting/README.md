@@ -320,4 +320,3 @@ Successfully identified a slow query caused by a sequential scan, created an ind
 
 The final validation confirmed **100,000 total shipment records** and **20,000 Mumbai-destination records** after optimization.
 
-```
